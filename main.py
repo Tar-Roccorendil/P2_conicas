@@ -1,6 +1,7 @@
 import pygame
 import pygame.locals
 import math
+import numpy
 
 def mat_mult(A: list[list[float]], B: list[list[float]]) -> list[list[float]]:
     m, n, p = len(A), len(B), len(B[0])
@@ -13,31 +14,34 @@ def mat_mult(A: list[list[float]], B: list[list[float]]) -> list[list[float]]:
 def dot(v: tuple[float], u: tuple[float]) -> float:
     return sum(a*b for a,b in zip(v,u))
 
+def transpose(matrix: list[list[float]]) -> list[list[float]]:
+    return [[matrix[i][j] for i in range(len(matrix))] for j in range(len(matrix[0]))]
+
 def qr_gram_schmidt(A: list[list[float]]) -> tuple[list[list[float]],list[list[float]]]:
-    # n = len(A)
-    # Q = [[0 for _ in A] for _ in A]
-    # R = [[0 for _ in A] for _ in A]
-    # R[0][0] = sqrt(dot(A[0],A[0]))
-    # Q[0] = [a/R[0][0] for a in A[0]]
+    n = len(A)
+    Q = [[0 for _ in A] for _ in A]
+    R = [[0 for _ in A] for _ in A]
+    R[0][0] = math.sqrt(dot(A[0],A[0]))
+    Q[0] = [a/R[0][0] for a in A[0]]
     
-    # for k in range(1,n):
-    #     R[k]
+    for k in range(1,n):
+        R[k]
 
 
     pass
 
-def qr_reflect():
-    pass
+def qr_reflect(M):
+    return numpy.linalg.qr(M)
 
 def determinant(matrix: list[list[float]]) -> float:
     Q, R = qr_reflect(matrix)
 
-    return math.prod(R[i][i] for i in range(len(R)))
+    return math.prod(row[i] for i, row in enumerate(R))
     
 
 def conic_coefficients(Points:list[tuple[int, int]]) -> list[int]:
     '''
-    Gets a list of 5 2-tuples and outputs the coefficients of the terms
+    Gets a list of 5 2-tuples and outputs the coefficients of the terms\n
     Output in the order [x^2, xy, y^2, x, y, 1]
     '''
     matrix = [
@@ -48,9 +52,11 @@ def conic_coefficients(Points:list[tuple[int, int]]) -> list[int]:
         [p[1] for p in Points],
         [1 for p in Points]
     ]
+    # print(numpy.matrix(matrix))
 
-    coefficients = [determinant(matrix[:i]+matrix[i+1:]) * (-1)**i for i in range(matrix)]
 
+    coefficients = [determinant(matrix[:i]+matrix[i+1:]) * (-1)**i for i in range(len(matrix))]
+    print(f"{coefficients[0]}x2 +\n{coefficients[1]}xy + \n{coefficients[2]}y2 + \n{coefficients[3]}x + \n{coefficients[4]}y + \n{coefficients[5]}")
     return coefficients
 
 def conic_value(x: int, y: int,c: list[int]) -> int:
@@ -61,17 +67,20 @@ def test_value(x: int, y: int,points: list[tuple[int,int]]) -> float:
 
 
 def draw_graph(surface: pygame.Surface,values: list[list[float]]) -> None:
-    white = max((max(row,key=abs) for row in values))
+    white = max((max(row,key=abs) for row in values),key=abs)
+    print(f"{white=}")
     
     for y, row in enumerate(values):
         for x, color in enumerate(row):
-            c = int(255*(color/white))
+            c = int(255*(abs(color/white)))
+            if not 0<=c<=255:
+                print(x,y,color,c)
             surface.set_at((x,y), pygame.Color(c,c,c))
 
 def draw_points(surface: pygame.Surface, points: list[tuple[int,int]]) -> None:
     for p in points:
         if p: 
-            pygame.draw.circle(surface,0xcc3333,p,5)
+            pygame.draw.circle(surface,0xcc3333,(p[0] * surface.get_width(), p[1] * surface.get_height()),5)
 
 
 if __name__ == '__main__':
@@ -98,17 +107,20 @@ if __name__ == '__main__':
                 mouse_x = event.pos[0]
                 mouse_y = event.pos[1]
 
-                new_point = (mouse_x, mouse_y)
-                mouse_pressed.append(new_point)
-                if len(mouse_pressed) == 6:
-                    mouse_pressed.remove(mouse_pressed[0])
-
-                    # conic_matrix = [[conic_value(x,y,conic_coefficients(mouse_pressed)) for x in screen.get_width] for y in screen.get_height()]
-                    graph_matrix = [[test_value(x,y,mouse_pressed) for x in range(screen.get_width())] for y in range(screen.get_height())]
-                    draw_graph(screen,graph_matrix)
-                draw_points(screen,mouse_pressed)
-                
-                pygame.display.flip()
+                new_point = (mouse_x/screen.get_width(), mouse_y/screen.get_height())
+                if new_point != mouse_pressed[-1]:
+                    mouse_pressed.append(new_point)
+                    if len(mouse_pressed) == 6:
+                        mouse_pressed.remove(mouse_pressed[0])
+                        coefficients = conic_coefficients(mouse_pressed)
+                        # print(coefficients)
+                        conic_matrix = [[conic_value(x/screen.get_width(),y/screen.get_height(),coefficients) for x in range(screen.get_width())] for y in range(screen.get_height())]
+                        # print(conic_matrix)
+                        # graph_matrix = [[test_value(x,y,mouse_pressed) for x in range(screen.get_width())] for y in range(screen.get_height())]
+                        draw_graph(screen,conic_matrix)
+                    draw_points(screen,mouse_pressed)
+                    
+                    pygame.display.flip()
 
     
     pygame.quit()
